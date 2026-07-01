@@ -8,9 +8,9 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "송장 변환 | 주문 엑셀 → 택배사 양식",
+  title: "송장변환기 | 주문 엑셀 → 택배사 양식",
   description:
-    "카페24, 네이버페이 등 주문 엑셀을 택배사 업로드 양식으로 빠르게 변환합니다.",
+    "어떤 쇼핑몰 주문 엑셀이든 롯데택배 업로드 양식으로 빠르게 변환합니다.",
 };
 
 export default function RootLayout({

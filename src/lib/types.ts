@@ -1,5 +1,3 @@
-export type SourceFormat = "cafe24" | "naver_pay" | "unknown";
-
 export type CourierId = "lotte";
 
 export type NormalizedOrder = {
@@ -16,7 +14,6 @@ export type NormalizedOrder = {
 
 export type ParsedFile = {
   fileName: string;
-  sourceFormat: SourceFormat;
   orders: NormalizedOrder[];
   rowCount: number;
 };
@@ -40,11 +37,7 @@ export type ConvertResult = {
   orders: Record<string, string>[];
   headers: string[];
   totalCount: number;
-  sourceSummary: {
-    fileName: string;
-    sourceFormat: SourceFormat;
-    rowCount: number;
-  }[];
+  sourceSummary: { fileName: string; rowCount: number }[];
 };
 
 export class ExcelParseError extends Error {

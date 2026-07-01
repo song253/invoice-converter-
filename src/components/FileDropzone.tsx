@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from "react";
 import type { ParsedFile } from "@/lib/types";
-import { SOURCE_LABELS } from "@/lib/mappings/sources";
 
 type Props = {
   files: ParsedFile[];
@@ -83,7 +82,7 @@ export default function FileDropzone({
           {isDragging ? "여기에 놓으세요" : "엑셀 파일을 드래그하거나 클릭"}
         </p>
         <p className="mt-1 text-sm text-neutral-400">
-          카페24, 네이버페이 등 주문 파일 · 여러 개 동시 업로드 가능
+          어떤 쇼핑몰·결제 수단 양식이든 업로드 가능 · 여러 파일 동시 지원
         </p>
       </label>
 
@@ -114,9 +113,7 @@ export default function FileDropzone({
                   <p className="truncate text-sm font-medium text-neutral-900">
                     {file.fileName}
                   </p>
-                  <p className="text-xs text-neutral-400">
-                    {SOURCE_LABELS[file.sourceFormat]} · {file.rowCount}건
-                  </p>
+                  <p className="text-xs text-neutral-400">{file.rowCount}건</p>
                 </div>
               </div>
               <button

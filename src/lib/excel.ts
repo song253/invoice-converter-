@@ -2,10 +2,10 @@ import * as XLSX from "xlsx";
 import { OfficeFile } from "office-crypto";
 import { COURIER_TEMPLATES } from "./mappings/couriers";
 import {
-  detectSourceFormat,
-  isNaverPayBulkTemplate,
+  hasRecognizableColumns,
+  isInstructionOnlySheet,
   parseOrderRow,
-} from "./mappings/sources";
+} from "./mappings/extract";
 import type {
   ConvertResult,
   CourierColumnKey,
@@ -70,7 +70,7 @@ async function loadWorkbookRows(
       return readWorkbookRows(decrypted);
     } catch {
       throw new ExcelParseError(
-        "비밀번호가 올바르지 않습니다. 네이버페이 다운로드 시 설정한 암호를 확인해 주세요.",
+        "비밀번호가 올바르지 않습니다. 설정한 암호를 확인해 주세요.",
         "PASSWORD_REQUIRED",
       );
     }
@@ -84,7 +84,7 @@ function findHeaderRowIndex(rows: unknown[][]): number {
     const textCells = row.filter(
       (cell) => String(cell ?? "").trim().length > 0,
     );
-    if (textCells.length >= 5) return i;
+    if (textCells.length >= 3) return i;
   }
   return 0;
 }
@@ -111,26 +111,38 @@ export async function parseOrderFile(
   const headerIndex = findHeaderRowIndex(rows);
   const headers = (rows[headerIndex] ?? []).map((cell) => String(cell ?? ""));
 
-  if (isNaverPayBulkTemplate(headers)) {
+  if (isInstructionOnlySheet(headers)) {
     throw new ExcelParseError(
-      "업로드하신 파일은 '엑셀 일괄발송' 안내 양식입니다. 네이버페이 발주/발송관리에서 '엑셀 다운'으로 받은 주문 정보 파일을 업로드해 주세요.",
+      "주문 데이터가 없는 안내 양식입니다. 주문 정보가 담긴 엑셀 파일을 업로드해 주세요.",
       "INVALID_TEMPLATE",
     );
   }
 
-  const sourceFormat = detectSourceFormat(headers);
+  if (!hasRecognizableColumns(headers)) {
+    throw new ExcelParseError(
+      "주문 정보를 찾을 수 없습니다. 수령인, 연락처, 주소, 상품명 등이 포함된 파일인지 확인해 주세요.",
+      "GENERIC",
+    );
+  }
+
   const orders: NormalizedOrder[] = [];
 
   for (let i = headerIndex + 1; i < rows.length; i++) {
     const row = rows[i];
     if (!Array.isArray(row)) continue;
-    const normalized = parseOrderRow(sourceFormat, headers, row);
+    const normalized = parseOrderRow(headers, row);
     if (normalized) orders.push(normalized);
+  }
+
+  if (orders.length === 0) {
+    throw new ExcelParseError(
+      "주문 데이터를 읽지 못했습니다. 파일에 데이터 행이 있는지 확인해 주세요.",
+      "GENERIC",
+    );
   }
 
   return {
     fileName: file.name,
-    sourceFormat,
     orders,
     rowCount: orders.length,
   };
@@ -163,15 +175,43 @@ export function convertToCourierFormat(
     totalCount: orders.length,
     sourceSummary: parsedFiles.map((file) => ({
       fileName: file.fileName,
-      sourceFormat: file.sourceFormat,
       rowCount: file.rowCount,
     })),
   };
 }
 
+export function generateDownloadFileName(result: ConvertResult): string {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return `롯데택배_${date}_${result.totalCount}건.xlsx`;
+}
+
+function getDisplayWidth(text: string): number {
+  let width = 0;
+  for (const char of text) {
+    width += char.charCodeAt(0) > 127 ? 2 : 1;
+  }
+  return width;
+}
+
+function autoFitColumnWidths(rows: string[][]): { wch: number }[] {
+  const columnCount = rows[0]?.length ?? 0;
+  const maxWidths = new Array<number>(columnCount).fill(8);
+
+  for (const row of rows) {
+    row.forEach((cell, index) => {
+      const cellWidth = getDisplayWidth(String(cell ?? ""));
+      maxWidths[index] = Math.max(maxWidths[index], cellWidth);
+    });
+  }
+
+  return maxWidths.map((width) => ({
+    wch: Math.min(width + 2, 80),
+  }));
+}
+
 export function downloadExcel(
   result: ConvertResult,
-  fileName = "롯데택배_업로드.xlsx",
+  fileName = generateDownloadFileName(result),
 ): void {
   const rows = [
     result.headers,
@@ -181,6 +221,7 @@ export function downloadExcel(
   ];
 
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
+  worksheet["!cols"] = autoFitColumnWidths(rows);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
   XLSX.writeFile(workbook, fileName);
